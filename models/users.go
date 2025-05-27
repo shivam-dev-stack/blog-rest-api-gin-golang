@@ -6,5 +6,5 @@ type User struct {
 	Email    string `gorm:"unique" json:"email"`
 	Password string `gorm:"type:varchar(255);not null" json:"password,omitempty"`
 
-	Posts    []Post
+	Posts []Post
 }

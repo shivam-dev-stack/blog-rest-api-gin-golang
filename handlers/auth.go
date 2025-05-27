@@ -6,6 +6,8 @@ import (
 	"gin-blog-api/models"
 	"net/http"
 
+	"gin-blog-api/utils"
+
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -52,21 +54,46 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	fmt.Println("Login attempt with email:", loginData.Email)
-
 	if err := config.DB.Where("email = ?", loginData.Email).First(&user).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
-
-	fmt.Println("Found user:", user.Email)
-	fmt.Println("DB hash:", user.Password)
-	fmt.Println("Entered password:", loginData.Password)
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginData.Password)); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Login successful", "user": user.Username})
+	token, err := utils.GenerateJWT(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		return
+	}
+
+	c.SetCookie("token", token, 24*3600, "/", "localhost", false, true)
+
+	c.JSON(http.StatusOK, gin.H{
+		"token": token,
+		"user": gin.H{
+			"id":       user.ID,
+			"username": user.Username,
+			"email":    user.Email,
+		},
+	})
+
+}
+
+func ProtectedHandler(c *gin.Context) {
+	user, _ := c.Get("userID")
+
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Protected content", "user": user})
+}
+
+func Logout(c *gin.Context) {
+	c.SetCookie("token", "", -1, "/", "localhost", false, true) // Clear the cookie
+	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
 }

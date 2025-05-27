@@ -9,6 +9,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type PostResponse struct {
+	ID      uint       `json:"id"`
+	Title   string     `json:"title"`
+	Content string     `json:"content"`
+	User    SimpleUser `json:"user"`
+}
+
+// SimpleUser represents a simplified user structure for responses
+type SimpleUser struct {
+	ID       uint   `json:"id"`
+	Username string `json:"username"`
+}
+
 func GetPostByID(c *gin.Context) {
 	idParam := c.Param("id")
 	if idParam == "" {
@@ -23,12 +36,22 @@ func GetPostByID(c *gin.Context) {
 	}
 
 	var post models.Post
-	if err := config.DB.First(&post, id).Error; err != nil {
+	if err := config.DB.Preload("User").First(&post, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
 		return
 	}
 
-	c.JSON(http.StatusOK, post)
+	response := PostResponse{
+		ID:      uint(post.ID),
+		Title:   post.Title,
+		Content: post.Content,
+		User: SimpleUser{
+			ID:       post.User.ID,
+			Username: post.User.Username,
+		},
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func UpdatePost(c *gin.Context) {
@@ -130,5 +153,22 @@ func GetPosts(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch posts"})
 		return
 	}
-	c.JSON(http.StatusOK, posts)
+
+	// PostResponse represents the response structure for a post with user info
+
+	var responsePosts []PostResponse
+	for _, post := range posts {
+		responsePosts = append(responsePosts, PostResponse{
+			ID:      uint(post.ID),
+			Title:   post.Title,
+			Content: post.Content,
+			User: SimpleUser{
+				ID:       post.User.ID,
+				Username: post.User.Username,
+			},
+		})
+	}
+
+	c.JSON(http.StatusOK, responsePosts)
+
 }
